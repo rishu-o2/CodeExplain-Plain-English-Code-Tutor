@@ -1,0 +1,3 @@
+# reports/.gitkeep
+# This empty file ensures the reports/ directory is tracked by Git.
+# Generated report files (PDF, HTML) are excluded via .gitignore.
