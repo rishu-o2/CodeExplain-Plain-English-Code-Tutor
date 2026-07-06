@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import copy
 import logging
+import json
+from datetime import datetime
 import streamlit as st
 
 # Internal helpers — UI components and file-loading utilities.
@@ -39,6 +41,10 @@ from utils.helper import (
     render_section_header,
 )
 import utils.gemini_client as gemini_client
+import utils.code_processor as code_processor
+import utils.analysis as analysis
+import utils.report_generator as report_generator
+import utils.language_detector as language_detector
 
 # Setup module logging
 logging.basicConfig(level=logging.INFO)
@@ -199,6 +205,9 @@ def _init_session_state() -> None:
     if "quiz_score" not in st.session_state:
         st.session_state.quiz_score = 0
 
+    if "analysis_history" not in st.session_state:
+        st.session_state.analysis_history = []
+
 
 # =============================================================================
 # SIDEBAR
@@ -245,7 +254,22 @@ def render_sidebar() -> None:
             f"{APP_NAME} helps students and developers understand "
             "code snippets in plain, simple English — no jargon needed!"
         )
+        
+        # ── Recent Analyses ───────────────────────────────────────────────────
+        if st.session_state.get("analysis_history"):
+            st.divider()
+            st.markdown("### 📜 Recent Analyses")
+            for idx, hist in enumerate(reversed(st.session_state.analysis_history)):
+                lang = hist.get("language", "Code")
+                ts = hist.get("timestamp", "")
+                if st.button(f"Load {lang} - {ts}", key=f"hist_{idx}", use_container_width=True):
+                    st.session_state.analysis_result = copy.deepcopy(hist.get("result"))
+                    st.session_state.code_input = hist.get("code")
+                    st.session_state.language_select = lang
+                    st.session_state.has_analyzed = True
+                    st.rerun()
 
+        st.divider()
         st.markdown(
             f"<small>🔖 v{APP_VERSION} &nbsp;|&nbsp; Built with Streamlit</small>",
             unsafe_allow_html=True,
@@ -291,7 +315,29 @@ def render_input_section() -> tuple[str, str, bool]:
         language     – The language selected in the dropdown.
         explain_btn  – ``True`` if the "Explain Code" button was clicked.
     """
-    st.markdown("### 📋 Paste Your Code")
+    st.markdown("### 📋 Paste or Upload Your Code")
+
+    uploader_key = st.session_state.get("uploader_key", 0)
+    uploaded_file = st.file_uploader("Upload a code file", type=["py", "js", "java", "cpp", "c", "h", "txt"], key=f"uploader_{uploader_key}")
+    
+    if uploaded_file is not None:
+        if st.session_state.get("uploaded_file_name") != uploaded_file.name:
+            try:
+                file_contents = uploaded_file.getvalue().decode("utf-8")
+                st.session_state["code_input"] = file_contents
+                st.session_state["uploaded_file_name"] = uploaded_file.name
+                
+                # Auto select language based on extension
+                ext = uploaded_file.name.split('.')[-1].lower()
+                ext_map = {'py': 'Python', 'java': 'Java', 'cpp': 'C++', 'js': 'JavaScript'}
+                if ext in ext_map:
+                    st.session_state["language_select"] = ext_map[ext]
+                else:
+                    st.session_state["language_select"] = DEFAULT_LANGUAGE
+                
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
 
     # Use session state so the Clear button can wipe the value across reruns.
     selected_language: str = st.session_state.get("language_select", DEFAULT_LANGUAGE)
@@ -342,6 +388,8 @@ def render_input_section() -> tuple[str, str, bool]:
             if "has_analyzed" in st.session_state:
                 st.session_state.has_analyzed = False
             st.session_state.analysis_result = copy.deepcopy(_ANALYSIS_RESULT_SCHEMA)
+            st.session_state["uploaded_file_name"] = None
+            st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
             st.rerun()
 
     return code, language, explain_btn
@@ -351,23 +399,14 @@ def render_input_section() -> tuple[str, str, bool]:
 # INPUT VALIDATION
 # =============================================================================
 
-def validate_input(code: str) -> bool:
+def validate_input(code: str) -> tuple[bool, str]:
     """
     Validate user-supplied code before attempting any processing.
-
-    Currently checks for non-empty input.  Add further rules (max length,
-    disallowed characters, etc.) here without touching any other module.
-
-    Args:
-        code: The raw string from the text area.
-
-    Returns:
-        ``True`` if valid; ``False`` and shows a warning otherwise.
     """
-    if not code.strip():
-        st.warning("⚠️ Please paste some code before clicking **Explain Code**.")
-        return False
-    return True
+    is_valid, error_msg, sanitized = code_processor.sanitize_and_validate(code)
+    if not is_valid:
+        st.warning(error_msg)
+    return is_valid, sanitized
 
 
 # =============================================================================
@@ -394,9 +433,9 @@ def render_summary_tab(code: str) -> None:
     st.markdown(summary_text)
 
     # Dynamic line and definitions calculations for metrics
-    raw_lines = code.splitlines()
-    lines_count = len([l for l in raw_lines if l.strip()])
-    def_count = sum(1 for line in raw_lines if any(kw in line for kw in ["def ", "function ", "class ", "void ", "fn "]))
+    metrics = analysis.calculate_static_metrics(code)
+    lines_count = metrics.get("lines_count", 0)
+    def_count = metrics.get("def_count", 0)
 
     st.markdown("---")
     col1, col2, col3 = st.columns(3)
@@ -435,12 +474,15 @@ def render_linebyline_tab() -> None:
         lang_highlight = "java"
 
     for label, code_line, explanation in rows:
-        with st.container(border=True):
+        preview = code_line.strip()
+        if len(preview) > 40:
+            preview = preview[:40] + "..."
+        with st.expander(f"**{label}:** `{preview}`"):
             col_code, col_exp = st.columns([1, 2])
             with col_code:
                 st.code(code_line, language=lang_highlight)
             with col_exp:
-                st.markdown(f"**{label}:** {explanation}")
+                st.markdown(f"**Explanation:**\n\n{explanation}")
 
 
 def render_complexity_tab() -> None:
@@ -521,15 +563,14 @@ def render_bug_tab() -> None:
         desc = bug.get("description", "")
         fix = bug.get("fix", "")
         
-        box_text = f"**Issue {idx} ({severity.capitalize()} Severity):** {desc}"
-        
-        with st.container(border=True):
+        box_title = f"Issue {idx} ({severity.capitalize()} Severity)"
+        with st.expander(box_title):
             if "high" in severity:
-                st.error(box_text)
+                st.error(f"**{box_title}**\n\n{desc}")
             elif "medium" in severity:
-                st.warning(box_text)
+                st.warning(f"**{box_title}**\n\n{desc}")
             else:
-                st.info(box_text)
+                st.info(f"**{box_title}**\n\n{desc}")
                 
             if fix.strip():
                 st.markdown("**Suggested Fix:**")
@@ -646,8 +687,29 @@ def render_output_tabs(code: str, language: str) -> None:
         language: The detected / selected language (stored for future use).
     """
     st.divider()
-    st.markdown("### 📊 Analysis Results")
-    render_language_badge(language)
+    
+    # Render Download buttons for Reports
+    col_title, col_dl_md, col_dl_html, col_dl_json = st.columns([2, 1, 1, 1])
+    with col_title:
+        st.markdown("### 📊 Analysis Results")
+        render_language_badge(language)
+        
+    result = st.session_state.analysis_result
+    
+    with col_dl_md:
+        st.markdown("<br>", unsafe_allow_html=True)
+        md_content = report_generator.generate_markdown_report(result, code)
+        st.download_button("📄 Markdown", data=md_content, file_name="code_report.md", mime="text/markdown", use_container_width=True)
+        
+    with col_dl_html:
+        st.markdown("<br>", unsafe_allow_html=True)
+        html_content = report_generator.generate_html_report(result, code)
+        st.download_button("📄 HTML", data=html_content, file_name="code_report.html", mime="text/html", use_container_width=True)
+
+    with col_dl_json:
+        st.markdown("<br>", unsafe_allow_html=True)
+        json_content = json.dumps(result, indent=2)
+        st.download_button("📄 JSON", data=json_content, file_name="code_report.json", mime="application/json", use_container_width=True)
 
     # Unpack exactly as many variables as there are entries in ALL_TABS.
     (
@@ -741,6 +803,15 @@ def process_code(code: str, language: str) -> None:
         # Reset running quiz score
         st.session_state.quiz_score = 0
         
+        # Append to history
+        history_item = {
+            "timestamp": datetime.now().strftime("%H:%M:%S"),
+            "language": language,
+            "code": code,
+            "result": copy.deepcopy(st.session_state.analysis_result)
+        }
+        st.session_state.analysis_history.append(history_item)
+        
     except Exception as e:
         logger.error(f"Failed to process unified code analysis: {e}")
         # Retain standard baseline defaults
@@ -773,16 +844,22 @@ def main() -> None:
     code, language, explain_clicked = render_input_section()
 
     if explain_clicked:
-        if validate_input(code):
+        is_valid, code_sanitized = validate_input(code)
+        if is_valid:
+            if language == DEFAULT_LANGUAGE:
+                language_used = language_detector.detect_language(code_sanitized)
+            else:
+                language_used = language
+
             # Store the selected language immediately so all Phase 3 modules
             # can read it from session state without needing extra arguments.
-            st.session_state.analysis_result["language"] = language
+            st.session_state.analysis_result["language"] = language_used
 
             with st.spinner(SPINNER_TEXT):
-                process_code(code, language)
+                process_code(code_sanitized, language_used)
 
             st.session_state.has_analyzed = True
-            render_output_tabs(code, language)
+            render_output_tabs(code_sanitized, language_used)
     elif st.session_state.get("has_analyzed", False):
         language_used = st.session_state.analysis_result.get("language", language)
         render_output_tabs(code, language_used)

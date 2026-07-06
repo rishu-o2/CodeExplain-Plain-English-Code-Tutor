@@ -8,11 +8,12 @@
 
 **CodeExplain** is a Streamlit-based web application designed to help beginners and intermediate developers understand code written in Python, JavaScript, Java, C++, and more.
 
-Paste any code snippet and instantly receive:
+Paste or drag-and-drop any code snippet and instantly receive:
 - ✅ A plain-English, line-by-line explanation
 - 🧩 Auto-generated comprehension quizzes
-- 📄 Downloadable PDF/HTML learning reports
+- 📄 Downloadable Markdown/HTML learning reports
 - 🔍 Key concept identification and complexity analysis
+- 🚀 **Single-Request Architecture**: All insights generated in one efficient Gemini API call.
 
 ---
 
@@ -42,13 +43,11 @@ CodeExplain/
 │
 ├── utils/
 │   ├── __init__.py           # Makes utils a Python package
-│   ├── gemini_client.py      # Google Gemini API wrapper
-│   ├── prompts.py            # AI prompt templates
+│   ├── gemini_client.py      # Google Gemini API wrapper (Single-Request Architecture)
 │   ├── language_detector.py  # Auto-detects programming language
 │   ├── code_processor.py     # Code parsing and pre-processing
 │   ├── analysis.py           # Code metrics and concept extraction
-│   ├── quiz_generator.py     # AI-powered quiz creation & scoring
-│   ├── report_generator.py   # PDF/HTML report export
+│   ├── report_generator.py   # Markdown/HTML report export
 │   └── helper.py             # Shared utility functions
 │
 └── tests/
@@ -81,6 +80,18 @@ CodeExplain/
    streamlit run app.py
    ```
 
+### 🐳 Running with Docker
+
+1. **Build the image**
+   ```bash
+   docker build -t codeexplain .
+   ```
+
+2. **Run the container**
+   ```bash
+   docker run -p 8501:8501 --env-file .env codeexplain
+   ```
+
 ---
 
 ## 🔑 Environment Variables
@@ -94,9 +105,10 @@ CodeExplain/
 ## 🛠️ Tech Stack
 
 - **Frontend**: Streamlit
-- **AI Model**: Google Gemini (via `google-generativeai`)
-- **Language Detection**: Pygments
-- **Report Export**: ReportLab (PDF)
+- **AI Model**: Google Gemini 2.5 Flash (via `google-generativeai`)
+- **Language Detection**: Custom Heuristics
+- **Report Export**: Markdown & HTML
+- **Deployment**: Docker ready
 - **Config Management**: python-dotenv
 
 ---
