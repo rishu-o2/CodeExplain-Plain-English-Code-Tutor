@@ -1,118 +1,89 @@
-# 🧠 CodeExplain: Plain-English Code Tutor
+# CodeExplain: Plain-English Code Tutor
 
-> An AI-powered learning tool that explains code snippets in plain English, generates interactive quizzes, and produces downloadable learning reports — powered by Google Gemini.
+CodeExplain is a Streamlit-based application that helps students and developers understand source code in plain English. It accepts pasted code or uploaded source files, sends a single Gemini analysis request, and returns a structured explanation with statistics, complexity details, bug insights, quiz questions, learning tips, and downloadable reports.
 
----
+## Overview
 
-## 📖 Description
+- Explain code in clear, beginner-friendly language
+- Support Python, Java, JavaScript, C++, and Auto Detect
+- Provide line-by-line analysis, complexity insights, and improvement suggestions
+- Generate downloadable Markdown, HTML, and JSON reports
+- Keep a lightweight session history and analytics experience
 
-**CodeExplain** is a Streamlit-based web application designed to help beginners and intermediate developers understand code written in Python, JavaScript, Java, C++, and more.
+## Features
 
-Paste or drag-and-drop any code snippet and instantly receive:
-- ✅ A plain-English, line-by-line explanation
-- 🧩 Auto-generated comprehension quizzes
-- 📄 Downloadable Markdown/HTML learning reports
-- 🔍 Key concept identification and complexity analysis
-- 🚀 **Single-Request Architecture**: All insights generated in one efficient Gemini API call.
+- File upload and direct code paste
+- Manual language selection or automatic detection
+- Summary, line-by-line breakdown, complexity analysis, bug review, quiz, and learning tips
+- Downloadable analysis reports
+- Session analytics and recent history
 
----
+## Technology Stack
 
-## 📁 Folder Structure
+- Streamlit for the web interface
+- Google Gemini for AI-powered analysis
+- Python standard library for processing and reporting
 
+## Architecture
+
+The project uses a single-request analysis flow:
+
+1. The app collects user input from the editor or file uploader.
+2. The input is validated and prepared.
+3. A single Gemini request produces the full analysis payload.
+4. The app renders the results in the analysis tabs and download area.
+
+## Installation
+
+```bash
+pip install -r requirements.txt
 ```
-CodeExplain/
-│
-├── app.py                    # Main Streamlit application entry point
-├── config.py                 # Environment variables & app-wide constants
-├── requirements.txt          # Python dependencies
-├── README.md                 # Project documentation (this file)
-├── .env.example              # Template for environment secrets
-├── .gitignore                # Files & folders excluded from version control
-│
+
+## How to Run
+
+```bash
+streamlit run app.py
+```
+
+## Folder Structure
+
+```text
+CodeExplain-Plain-English-Code-Tutor/
+├── app.py
+├── config.py
+├── requirements.txt
+├── Dockerfile
+├── .env.example
+├── .gitignore
 ├── assets/
-│   ├── logo.png              # App logo / branding image
-│   └── styles.css            # Custom CSS for Streamlit UI
-│
-├── reports/                  # Auto-generated PDF/HTML reports (git-ignored)
-│
-├── sample_codes/
-│   ├── python_example.py     # Sample Python snippet for demos
-│   ├── java_example.java     # Sample Java snippet for demos
-│   ├── cpp_example.cpp       # Sample C++ snippet for demos
-│   └── javascript_example.js # Sample JavaScript snippet for demos
-│
+│   ├── logo.png
+│   └── styles.css
+├── reports/
 ├── utils/
-│   ├── __init__.py           # Makes utils a Python package
-│   ├── gemini_client.py      # Google Gemini API wrapper (Single-Request Architecture)
-│   ├── language_detector.py  # Auto-detects programming language
-│   ├── code_processor.py     # Code parsing and pre-processing
-│   ├── analysis.py           # Code metrics and concept extraction
-│   ├── report_generator.py   # Markdown/HTML report export
-│   └── helper.py             # Shared utility functions
-│
+│   ├── analysis.py
+│   ├── code_processor.py
+│   ├── gemini_client.py
+│   ├── helper.py
+│   ├── language_detector.py
+│   ├── report_generator.py
+│   └── __init__.py
 └── tests/
-    └── test_language_detector.py  # Unit tests for language detection
 ```
 
----
+## Screenshots
 
-## 🚀 Getting Started
+The app presents a minimal landing page with:
+- a title and subtitle
+- an upload control and code editor
+- a language selector
+- an explain button
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/CodeExplain-Plain-English-Code-Tutor.git
-   cd CodeExplain-Plain-English-Code-Tutor
-   ```
+## Future Scope
 
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+- Additional export formats
+- More refined quiz and learning experiences
+- Expanded educational content and onboarding
 
-3. **Set up your API key**
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your GEMINI_API_KEY
-   ```
+## License
 
-4. **Run the app**
-   ```bash
-   streamlit run app.py
-   ```
-
-### 🐳 Running with Docker
-
-1. **Build the image**
-   ```bash
-   docker build -t codeexplain .
-   ```
-
-2. **Run the container**
-   ```bash
-   docker run -p 8501:8501 --env-file .env codeexplain
-   ```
-
----
-
-## 🔑 Environment Variables
-
-| Variable         | Description                        |
-|------------------|------------------------------------|
-| `GEMINI_API_KEY` | Your Google Gemini API key         |
-
----
-
-## 🛠️ Tech Stack
-
-- **Frontend**: Streamlit
-- **AI Model**: Google Gemini 2.5 Flash (via `google-generativeai`)
-- **Language Detection**: Custom Heuristics
-- **Report Export**: Markdown & HTML
-- **Deployment**: Docker ready
-- **Config Management**: python-dotenv
-
----
-
-## 📜 License
-
-MIT License — see `LICENSE` for details.
+MIT License

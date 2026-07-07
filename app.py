@@ -1,24 +1,11 @@
 # =============================================================================
-# app.py — Main Entry Point for CodeExplain: Plain-English Code Tutor
+# app.py — CodeExplain v1.0
 # =============================================================================
-# Responsibilities (this file only):
-#   - Streamlit page configuration & CSS injection
-#   - Rendering sidebar, header, input section, and output tabs
-#   - Session-state initialisation via a single structured object
-#   - Orchestrating calls between UI sections
-#
-# What this file does NOT do:
-#   - No hardcoded sample code  → loaded dynamically via utils.helper
-#   - No inline CSS             → loaded from assets/styles.css via utils.helper
-#   - No AI / Gemini logic      → reserved for utils/gemini_client.py
-#   - No language detection     → reserved for utils/language_detector.py
-#   - No complexity analysis    → reserved for utils/analysis.py
-#   - No quiz generation        → reserved for utils/quiz_generator.py
-#   - No report generation      → reserved for utils/report_generator.py
-#
-# Session-state contract (Phase 3 hook-up guide):
-#   All AI output is stored in ONE object: st.session_state.analysis_result
-#   See _init_session_state() for the full schema.
+# Streamlit entry point. Responsibilities:
+#   - Page configuration and CSS injection
+#   - Sidebar, header, input section, and output tabs
+#   - Session-state initialisation
+#   - Orchestrating the single Gemini analysis request
 #
 # Run with:  streamlit run app.py
 # =============================================================================
@@ -26,28 +13,31 @@
 from __future__ import annotations
 
 import copy
-import logging
 import json
+import logging
+import time
 from datetime import datetime
-import streamlit as st
 
-# Internal helpers — UI components and file-loading utilities.
+import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from utils.helper import (
     load_css,
-    load_sample_code,
     render_empty_card,
-    render_language_badge,
-    render_placeholder,
+    render_error_card,
+    render_history_panel,
     render_section_header,
+    render_session_analytics,
 )
-import utils.gemini_client as gemini_client
-import utils.code_processor as code_processor
 import utils.analysis as analysis
-import utils.report_generator as report_generator
+import utils.code_processor as code_processor
+import utils.gemini_client as gemini_client
 import utils.language_detector as language_detector
+import utils.report_generator as report_generator
 
-# Setup module logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("app")
 
 
@@ -66,34 +56,12 @@ st.set_page_config(
 load_css("assets/styles.css")
 
 
-# =============================================================================
-# APPLICATION METADATA
-# Single source of truth for the app name, subtitle, and version.
-# Use these constants everywhere (header, sidebar, footer, page title).
-# =============================================================================
 APP_NAME:     str = "CodeExplain"
 APP_SUBTITLE: str = "Plain-English Code Tutor"
 APP_VERSION:  str = "1.0.0"
 
-
-# =============================================================================
-# CONSTANTS
-# Single source of truth for labels, icons, and tab titles.
-# Changing a value here updates every place it is used in the UI.
-# =============================================================================
-
-# Default language shown in the dropdown on first load.
 DEFAULT_LANGUAGE: str = "Auto Detect"
 
-# Text shown in the spinner while the AI processes the code.
-SPINNER_TEXT: str = "🤖 Analyzing your code..."
-
-# Generic placeholder text for sections not yet populated by AI.
-AI_STATUS_PLACEHOLDER: str = (
-    "This section will be populated after Gemini analysis."
-)
-
-# Languages shown in the dropdown. DEFAULT_LANGUAGE must stay first (index 0).
 SUPPORTED_LANGUAGES: list[str] = [
     DEFAULT_LANGUAGE,
     "Python",
@@ -102,7 +70,6 @@ SUPPORTED_LANGUAGES: list[str] = [
     "JavaScript",
 ]
 
-# Emoji icons shown beside each language name in the sidebar.
 LANGUAGE_ICONS: dict[str, str] = {
     "Python":     "🐍",
     "Java":       "☕",
@@ -110,96 +77,44 @@ LANGUAGE_ICONS: dict[str, str] = {
     "JavaScript": "🌐",
 }
 
-# Feature bullets displayed in the sidebar.
-FEATURE_LIST: list[str] = [
-    "📝 Plain-English explanations",
-    "🔍 Line-by-line breakdown",
-    "📊 Complexity analysis",
-    "💡 Code improvement tips",
-    "🐛 Bug detection",
-    "🧩 Interactive quiz",
-    "🎓 Learning tips",
-    "📄 Downloadable reports",
-]
+# Tab labels — clean names, no emoji clutter.
+TAB_SUMMARY:     str = "Summary"
+TAB_LINEBY:      str = "Line-by-Line"
+TAB_COMPLEXITY:  str = "Complexity"
+TAB_IMPROVEMENT: str = "Improvements"
+TAB_BUGS:        str = "Bugs"
+TAB_QUIZ:        str = "Quiz"
+TAB_LEARNING:    str = "Learning Tips"
 
-# Tab title constants — defined once so render_output_tabs() and any future
-# deep-link / routing logic always share the same strings.
-TAB_SUMMARY:       str = "📝 Summary"
-TAB_LINEBY:        str = "🔍 Line-by-Line"
-TAB_COMPLEXITY:    str = "📊 Complexity"
-TAB_IMPROVEMENT:   str = "💡 Improvements"
-TAB_BUGS:          str = "🐛 Bugs"
-TAB_QUIZ:          str = "🧩 Quiz"
-TAB_LEARNING:      str = "🎓 Learning Tips"
-
-# Ordered list consumed by st.tabs() — display order is controlled here.
 ALL_TABS: list[str] = [
-    TAB_SUMMARY,
-    TAB_LINEBY,
-    TAB_COMPLEXITY,
-    TAB_IMPROVEMENT,
-    TAB_BUGS,
-    TAB_QUIZ,
-    TAB_LEARNING,
+    TAB_SUMMARY, TAB_LINEBY, TAB_COMPLEXITY,
+    TAB_IMPROVEMENT, TAB_BUGS, TAB_QUIZ, TAB_LEARNING,
 ]
 
-
-# =============================================================================
-# SESSION STATE INITIALISATION
-# =============================================================================
-# All AI output is consolidated into ONE structured dict:
-#   st.session_state.analysis_result
-#
-# Phase 3 hook-up guide — which module writes each field:
-#   analysis_result["language"]      ← utils.language_detector
-#   analysis_result["summary"]       ← utils.gemini_client + utils.prompts
-#   analysis_result["line_by_line"]  ← utils.gemini_client + utils.prompts
-#   analysis_result["complexity"]    ← utils.analysis
-#   analysis_result["improvements"]  ← utils.gemini_client + utils.prompts
-#   analysis_result["bugs"]          ← utils.gemini_client + utils.prompts
-#   analysis_result["quiz"]          ← utils.quiz_generator
-#   analysis_result["learning_tips"] ← utils.gemini_client + utils.prompts
-#   analysis_result["report_path"]   ← utils.report_generator
-#
-# st.session_state.quiz_score is kept separate because it tracks live user
-# interaction, not an AI response.
-# =============================================================================
 
 #: Schema for the single analysis result object stored in session state.
 _ANALYSIS_RESULT_SCHEMA: dict = {
-    "language":     None,   # str  — detected / selected language
-    "summary":      None,   # str  — plain-English overview from Gemini
-    "line_by_line": [],     # list[tuple[str, str, str]] — (label, code, explanation)
+    "language":     None,
+    "summary":      None,
+    "line_by_line": [],
     "complexity": {
-        "time":        None,  # str  — e.g. "O(2ⁿ)"
-        "space":       None,  # str  — e.g. "O(n)"
-        "readability": None,  # int  — score out of 10
-        "difficulty":  None,  # str  — "Beginner" / "Intermediate" / "Advanced"
-        "nesting_depth": None,  # int
+        "time":          None,
+        "space":         None,
+        "readability":   None,
+        "difficulty":    None,
+        "nesting_depth": None,
     },
-    "improvements": [],     # list[str] — improvement suggestion strings
-    "bugs":         [],     # list[dict] — {severity, description, fix}
-    "quiz":         [],     # list[dict] — {question, options, answer, explanation}
-    "learning_tips": [],    # list[str] — concepts, topics, exercises, next steps
-    "report_path":  None,   # str  — absolute path to the generated PDF/HTML
+    "improvements":  [],
+    "bugs":          [],
+    "quiz":          [],
+    "learning_tips": [],
+    "report_path":   None,
 }
 
 
 def _init_session_state() -> None:
-    """
-    Initialise all session-state keys used by the application.
-
-    Called once at the top of ``main()``.  Keys are set only when absent
-    so existing values are never overwritten on re-runs.
-
-    State layout:
-      ``st.session_state.analysis_result`` — single structured dict holding
-          every AI response field (see ``_ANALYSIS_RESULT_SCHEMA`` for schema).
-      ``st.session_state.quiz_score``       — running count of correct answers.
-    """
+    """Initialise all session-state keys on first run."""
     if "analysis_result" not in st.session_state:
-        # Deep-copy the schema so mutating session state never affects the
-        # template dict.
         st.session_state.analysis_result = copy.deepcopy(_ANALYSIS_RESULT_SCHEMA)
 
     if "quiz_score" not in st.session_state:
@@ -208,6 +123,22 @@ def _init_session_state() -> None:
     if "analysis_history" not in st.session_state:
         st.session_state.analysis_history = []
 
+    if "session_stats" not in st.session_state:
+        st.session_state.session_stats = {
+            "analyses":    0,
+            "files_uploaded": 0,
+            "start_time": datetime.now(),
+            "total_length": 0,
+            "lang_counts": {},
+        }
+
+    if "cached_metrics_hash" not in st.session_state:
+        st.session_state.cached_metrics_hash = None
+        st.session_state.cached_metrics = {}
+
+    if "code_input" not in st.session_state:
+        st.session_state.code_input = ""
+
 
 # =============================================================================
 # SIDEBAR
@@ -215,65 +146,75 @@ def _init_session_state() -> None:
 
 def render_sidebar() -> None:
     """
-    Render the left sidebar containing:
-      - Logo and project title (from APP_NAME / APP_SUBTITLE constants)
-      - Supported-languages list
-      - Feature highlights
-      - About blurb and version tag (from APP_VERSION constant)
+    Sidebar order (Task 4):
+      1. Logo + project name
+      2. Supported Languages
+      3. Features
+      4. Session Analytics (collapsed)
+      5. Recent History (collapsed)
+      6. About
     """
     with st.sidebar:
 
-        # ── Logo & branding ───────────────────────────────────────────────────
+        # 1. Logo & name
         try:
-            st.image("assets/logo.png", width="stretch")
+            st.image("assets/logo.png", use_container_width=True)
         except Exception:
             st.markdown("## 🤖")
-
-        st.markdown(f"## {APP_NAME}")
-        st.markdown(f"**{APP_SUBTITLE}** powered by Google Gemini AI.")
-
+        st.markdown("## 🤖 CodeExplain")
+        st.caption("Plain-English Code Tutor")
         st.divider()
 
-        # ── Supported languages ───────────────────────────────────────────────
-        st.markdown("### 🌐 Supported Languages")
-        for lang, icon in LANGUAGE_ICONS.items():
-            st.markdown(f"- {icon} **{lang}**")
-
-        st.divider()
-
-        # ── Feature list ──────────────────────────────────────────────────────
-        st.markdown("### ✨ Features")
-        for feature in FEATURE_LIST:
-            st.markdown(f"- {feature}")
-
-        st.divider()
-
-        # ── About ─────────────────────────────────────────────────────────────
-        st.markdown("### ℹ️ About")
-        st.info(
-            f"{APP_NAME} helps students and developers understand "
-            "code snippets in plain, simple English — no jargon needed!"
+        # 2. Supported Languages — badge row
+        st.markdown("**Supported Languages**")
+        badges = " &nbsp; ".join(
+            f"<span class='lang-badge'>{icon} {lang}</span>"
+            for lang, icon in LANGUAGE_ICONS.items()
         )
-        
-        # ── Recent Analyses ───────────────────────────────────────────────────
-        if st.session_state.get("analysis_history"):
-            st.divider()
-            st.markdown("### 📜 Recent Analyses")
-            for idx, hist in enumerate(reversed(st.session_state.analysis_history)):
-                lang = hist.get("language", "Code")
-                ts = hist.get("timestamp", "")
-                if st.button(f"Load {lang} - {ts}", key=f"hist_{idx}", use_container_width=True):
-                    st.session_state.analysis_result = copy.deepcopy(hist.get("result"))
-                    st.session_state.code_input = hist.get("code")
-                    st.session_state.language_select = lang
-                    st.session_state.has_analyzed = True
-                    st.rerun()
+        st.markdown(f"<div class='lang-badges'>{badges}</div>", unsafe_allow_html=True)
+        st.divider()
+
+        # 3. Features list
+        st.markdown("**Features**")
+        for feat in [
+            "Plain-English Summary",
+            "Line-by-Line Breakdown",
+            "Complexity Analysis",
+            "Improvement Suggestions",
+            "Bug Detection",
+            "Interactive Quiz",
+            "Learning Tips",
+            "Downloadable Reports",
+        ]:
+            st.caption(f"\u2713 {feat}")
+        st.divider()
+
+        # 4. Session Analytics
+        with st.expander("Session Analytics", expanded=False):
+            if st.session_state.session_stats.get("analyses", 0) > 0:
+                render_session_analytics(st.session_state.session_stats)
+            else:
+                st.caption("Available after your first analysis.")
+
+        # 5. Recent History
+        with st.expander("Recent History", expanded=False):
+            if st.session_state.get("analysis_history"):
+                render_history_panel(st.session_state.analysis_history, LANGUAGE_ICONS)
+            else:
+                st.caption("No history yet.")
 
         st.divider()
+
+        # 6. About
+        st.caption(
+            "AI-powered code explanation for students and developers.\n"
+            "Powered by Google Gemini."
+        )
         st.markdown(
-            f"<small>🔖 v{APP_VERSION} &nbsp;|&nbsp; Built with Streamlit</small>",
+            f"<small style='color:var(--text-muted)'>🔖 v{APP_VERSION} · Built with Streamlit</small>",
             unsafe_allow_html=True,
         )
+
 
 
 # =============================================================================
@@ -282,21 +223,18 @@ def render_sidebar() -> None:
 
 def render_header() -> None:
     """
-    Render the centred page title and subtitle at the top of the main area.
-    Title and subtitle text come from the APP_NAME / APP_SUBTITLE constants.
+    Render the centred page title and subtitle.
+    T3: single prominent title only, no duplicate branding.
     """
     st.markdown(
-        f"<h1 style='text-align:center;'>🤖 {APP_NAME}</h1>",
+        "<h1 style='text-align:center;'>🤖 CodeExplain</h1>",
         unsafe_allow_html=True,
     )
     st.markdown(
-        f"<p class='hero-subtitle'>"
-        f"Your <strong>{APP_SUBTITLE}</strong> — "
-        f"paste any code and instantly understand it."
-        f"</p>",
+        "<p class='hero-subtitle'>Understand any code in plain English — "
+        "powered by Google Gemini.</p>",
         unsafe_allow_html=True,
     )
-    st.divider()
 
 
 # =============================================================================
@@ -305,88 +243,84 @@ def render_header() -> None:
 
 def render_input_section() -> tuple[str, str, bool]:
     """
-    Render the code-paste area, language dropdown, Explain, and Clear buttons.
-
-    The text area is pre-filled with the Python sample code on first load.
-    When Clear is pressed the text area is emptied via session-state reset.
+    Render the upload widget, code editor, language selector, and action buttons.
 
     Returns:
-        code         – The raw code string currently in the text area.
-        language     – The language selected in the dropdown.
-        explain_btn  – ``True`` if the "Explain Code" button was clicked.
+        code        – Raw code string from the text area.
+        language    – Selected language.
+        explain_btn – True when the Analyze Code button is clicked.
     """
-    st.markdown("### 📋 Paste or Upload Your Code")
-
     uploader_key = st.session_state.get("uploader_key", 0)
-    uploaded_file = st.file_uploader("Upload a code file", type=["py", "js", "java", "cpp", "c", "h", "txt"], key=f"uploader_{uploader_key}")
-    
+    uploaded_file = st.file_uploader(
+        "Upload File",
+        type=["py", "js", "java", "cpp", "c", "h", "txt"],
+        key=f"uploader_{uploader_key}",
+        help="Supported: Python • Java • JavaScript • C++",
+    )
+
     if uploaded_file is not None:
         if st.session_state.get("uploaded_file_name") != uploaded_file.name:
             try:
                 file_contents = uploaded_file.getvalue().decode("utf-8")
                 st.session_state["code_input"] = file_contents
                 st.session_state["uploaded_file_name"] = uploaded_file.name
-                
-                # Auto select language based on extension
-                ext = uploaded_file.name.split('.')[-1].lower()
-                ext_map = {'py': 'Python', 'java': 'Java', 'cpp': 'C++', 'js': 'JavaScript'}
-                if ext in ext_map:
-                    st.session_state["language_select"] = ext_map[ext]
-                else:
-                    st.session_state["language_select"] = DEFAULT_LANGUAGE
-                
+                if "session_stats" in st.session_state:
+                    st.session_state.session_stats["files_uploaded"] += 1
+                ext = uploaded_file.name.split(".")[-1].lower()
+                ext_map = {"py": "Python", "java": "Java", "cpp": "C++", "js": "JavaScript"}
+                st.session_state["language_select"] = ext_map.get(ext, DEFAULT_LANGUAGE)
                 st.rerun()
-            except Exception as e:
-                st.error(f"Error reading file: {e}")
+            except Exception as exc:
+                st.error(f"Error reading file: {exc}")
 
-    # Use session state so the Clear button can wipe the value across reruns.
     selected_language: str = st.session_state.get("language_select", DEFAULT_LANGUAGE)
-    default_code: str = st.session_state.get(
-        "code_input",
-        load_sample_code(selected_language),
-    )
 
-    # ── Code text area ────────────────────────────────────────────────────────
+    # Editor stays empty until the user pastes or uploads code.
+    code_value = st.session_state.get("code_input") or ""
     code: str = st.text_area(
         label="Code Input",
-        value=default_code,
-        height=280,
+        value=code_value,
+        height=220,
         placeholder="Paste your Python, Java, C++, or JavaScript code here…",
         label_visibility="collapsed",
         key="code_input",
     )
 
-    # ── Controls row: language selector | Explain | Clear ────────────────────
+    # Source code preview (only when there is code to show)
+    if code.strip():
+        filename = st.session_state.get("uploaded_file_name")
+        preview_lang = selected_language.lower() if selected_language != "Auto Detect" else "python"
+        with st.expander("Source Code Preview", expanded=False):
+            if filename:
+                st.caption(f"File: {filename}")
+            st.code(code, language=preview_lang, line_numbers=True)
+
     col_lang, col_btn, col_clear = st.columns([2, 1.5, 1])
 
     with col_lang:
         language: str = st.selectbox(
-            label="🔤 Programming Language",
+            label="Language",
             options=SUPPORTED_LANGUAGES,
             index=SUPPORTED_LANGUAGES.index(DEFAULT_LANGUAGE),
             key="language_select",
+            help="Select the language or choose Auto Detect.",
         )
 
     with col_btn:
-        st.markdown("<br>", unsafe_allow_html=True)  # vertical alignment spacer
+        st.markdown("<br>", unsafe_allow_html=True)
         explain_btn: bool = st.button(
-            "🚀 Explain Code",
+            "Explain Code",
             type="primary",
             width="stretch",
             key="explain_btn",
+            help="Analyse your code using Google Gemini AI",
         )
 
     with col_clear:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button(
-            "🗑️ Clear",
-            type="secondary",
-            width="stretch",
-            key="clear_btn",
-        ):
+        if st.button("Clear", type="secondary", width="stretch", key="clear_btn"):
             st.session_state["code_input"] = ""
-            if "has_analyzed" in st.session_state:
-                st.session_state.has_analyzed = False
+            st.session_state["has_analyzed"] = False
             st.session_state.analysis_result = copy.deepcopy(_ANALYSIS_RESULT_SCHEMA)
             st.session_state["uploaded_file_name"] = None
             st.session_state["uploader_key"] = st.session_state.get("uploader_key", 0) + 1
@@ -406,64 +340,48 @@ def validate_input(code: str) -> tuple[bool, str]:
     is_valid, error_msg, sanitized = code_processor.sanitize_and_validate(code)
     if not is_valid:
         st.warning(error_msg)
+    logger.info("Validation completed")
     return is_valid, sanitized
 
 
 # =============================================================================
 # INDIVIDUAL TAB RENDERERS
-# Each function owns exactly one tab's content.
-# Reads real data from st.session_state.analysis_result.
 # =============================================================================
 
 def render_summary_tab(code: str) -> None:
-    """
-    Tab 1 — Plain-English Summary.
-
-    Reads ``st.session_state.analysis_result["summary"]`` and
-    difficulty to populate the text and metric cards below.
-    """
+    """Tab 1 — Plain-English Summary."""
     result = st.session_state.analysis_result
-    render_section_header("📝 Plain-English Summary")
-    
+    render_section_header("Plain-English Summary")
+
     summary_text = result.get("summary")
     if not summary_text:
-        render_placeholder(AI_STATUS_PLACEHOLDER)
+        st.info("No summary was returned for this analysis.")
         return
 
     st.markdown(summary_text)
+    st.markdown("---")
 
-    # Dynamic line and definitions calculations for metrics
     metrics = analysis.calculate_static_metrics(code)
     lines_count = metrics.get("lines_count", 0)
     def_count = metrics.get("def_count", 0)
 
-    st.markdown("---")
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
-        st.metric(label="📏 Lines of Code", value=str(lines_count))
+        st.metric(label="Lines of Code", value=str(lines_count))
     with col2:
-        st.metric(label="🔢 Functions/Classes Found", value=str(def_count))
-    with col3:
-        difficulty = result.get("complexity", {}).get("difficulty", "Beginner")
-        st.metric(label="⭐ Difficulty Level", value=difficulty)
+        st.metric(label="Functions / Classes", value=str(def_count))
 
 
 def render_linebyline_tab() -> None:
-    """
-    Tab 2 — Line-by-Line Explanation.
-
-    Iterates over ``st.session_state.analysis_result["line_by_line"]``
-    — a list of ``(label, code_line, explanation)`` tuples.
-    """
+    """Tab 2 — Line-by-Line Explanation."""
     result = st.session_state.analysis_result
-    render_section_header("🔍 Line-by-Line Explanation")
-    
+    render_section_header("Line-by-Line Explanation")
+
     rows = result.get("line_by_line", [])
     if not rows:
-        render_placeholder(AI_STATUS_PLACEHOLDER)
+        st.info("No line-by-line breakdown was returned for this analysis.")
         return
 
-    # Determine highlight language configuration dynamically
     lang = str(result.get("language", "python")).lower()
     lang_highlight = "python"
     if "javascript" in lang:
@@ -486,69 +404,51 @@ def render_linebyline_tab() -> None:
 
 
 def render_complexity_tab() -> None:
-    """
-    Tab 3 — Complexity Analysis.
-
-    Reads ``st.session_state.analysis_result["complexity"]`` — a dict with
-    keys ``time``, ``space``, ``readability``, ``difficulty``, and
-    ``nesting_depth``.
-    """
+    """Tab 3 — Complexity Analysis."""
     result = st.session_state.analysis_result
-    render_section_header("📊 Complexity Analysis")
-    
+    render_section_header("Complexity Analysis")
+
     complexity = result.get("complexity", {})
     if not complexity or complexity.get("time") is None:
-        render_placeholder(AI_STATUS_PLACEHOLDER)
+        st.info("No complexity analysis was returned for this analysis.")
         return
 
     col_left, col_right = st.columns(2)
     with col_left:
-        st.markdown("**🕐 Algorithmic Complexity**")
+        st.markdown("**Algorithmic Complexity**")
         st.metric(label="Time Complexity", value=complexity.get("time", "N/A"))
         st.metric(label="Space Complexity", value=complexity.get("space", "N/A"))
     with col_right:
-        st.markdown("**📐 Code Metrics**")
-        st.metric(label="Max Nesting Depth", value=str(complexity.get("nesting_depth", "N/A")))
-        st.metric(label="Readability Score", value=f"{complexity.get('readability', 'N/A')}/10")
-        st.metric(label="Difficulty Rating", value=complexity.get("difficulty", "N/A"))
+        st.markdown("**Code Metrics**")
+        st.metric(label="Nesting Depth", value=str(complexity.get("nesting_depth", "N/A")))
+        st.metric(label="Readability", value=f"{complexity.get('readability', 'N/A')}/10")
+        st.metric(label="Difficulty", value=complexity.get("difficulty", "N/A"))
 
 
 def render_improvement_tab() -> None:
-    """
-    Tab 4 — Suggested Improvements.
-
-    Iterates over ``st.session_state.analysis_result["improvements"]``
-    — a list of improvement strings.
-    """
+    """Tab 4 — Suggested Improvements."""
     result = st.session_state.analysis_result
-    render_section_header("💡 Suggested Improvements")
-    
+    render_section_header("Suggested Improvements")
+
     improvements = result.get("improvements", [])
     if not improvements:
-        render_placeholder(AI_STATUS_PLACEHOLDER)
+        st.info("No improvement suggestions were returned for this analysis.")
         return
 
-    for idx, imp in enumerate(improvements, start=1):
-        render_empty_card(imp, icon="✅")
+    for imp in improvements:
+        render_empty_card(imp, icon="✓")
 
 
 def render_bug_tab() -> None:
-    """
-    Tab 5 — Potential Bugs & Issues.
-
-    Iterates over ``st.session_state.analysis_result["bugs"]``
-    — a list of dicts with keys ``severity``, ``description``, and ``fix``.
-    """
+    """Tab 5 — Potential Bugs & Issues."""
     result = st.session_state.analysis_result
-    render_section_header("🐛 Potential Bugs & Issues")
-    
+    render_section_header("Bugs & Issues")
+
     bugs = result.get("bugs", [])
     if not bugs:
-        # Gracefully handle the no-bugs state with positive educational reinforcement
-        st.success("🎉 No bugs, anti-patterns, or logic errors were identified in this code!")
+        st.success("No bugs, anti-patterns, or logic errors were identified.")
         return
 
-    # Determine highlight language configuration dynamically
     lang = str(result.get("language", "python")).lower()
     lang_highlight = "python"
     if "javascript" in lang:
@@ -562,7 +462,7 @@ def render_bug_tab() -> None:
         severity = str(bug.get("severity", "Medium")).lower()
         desc = bug.get("description", "")
         fix = bug.get("fix", "")
-        
+
         box_title = f"Issue {idx} ({severity.capitalize()} Severity)"
         with st.expander(box_title):
             if "high" in severity:
@@ -571,25 +471,20 @@ def render_bug_tab() -> None:
                 st.warning(f"**{box_title}**\n\n{desc}")
             else:
                 st.info(f"**{box_title}**\n\n{desc}")
-                
+
             if fix.strip():
                 st.markdown("**Suggested Fix:**")
                 st.code(fix, language=lang_highlight)
 
 
 def render_quiz_tab() -> None:
-    """
-    Tab 6 — Comprehension Quiz.
-
-    Iterates over ``st.session_state.analysis_result["quiz"]`` — a list
-    of question dicts. Tracks score dynamically using persistent radio keys.
-    """
+    """Tab 6 — Comprehension Quiz."""
     result = st.session_state.analysis_result
-    render_section_header("🧩 Comprehension Quiz")
-    
+    render_section_header("Comprehension Quiz")
+
     quiz_questions = result.get("quiz", [])
     if not quiz_questions:
-        render_placeholder(AI_STATUS_PLACEHOLDER)
+        st.info("No quiz questions were returned for this analysis.")
         return
 
     correct_answers = 0
@@ -597,21 +492,20 @@ def render_quiz_tab() -> None:
     answered_questions = 0
 
     for idx, q in enumerate(quiz_questions):
-        st.markdown(f"##### Q{idx+1}. {q.get('question')}")
-        
+        st.markdown(f"##### Q{idx + 1}. {q.get('question')}")
+
         options = q.get("options", [])
         correct_answer = q.get("answer", "")
         explanation = q.get("explanation", "")
-        
-        # Unique key for persistent selections
+
         user_choice = st.radio(
             label=f"q_{idx}_label",
             options=options,
             index=None,
             key=f"quiz_q_{idx}",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
         )
-        
+
         if user_choice:
             answered_questions += 1
             if user_choice == correct_answer:
@@ -621,52 +515,93 @@ def render_quiz_tab() -> None:
                 st.error(f"❌ **Incorrect.** The correct answer is: **{correct_answer}**\n\n{explanation}")
         st.markdown("---")
 
-    # Update state score
     st.session_state.quiz_score = correct_answers
 
     col_score, col_submit = st.columns([3, 1])
     with col_score:
-        st.markdown(f"### 📊 Score: **{correct_answers}** / **{total_questions}** questions answered")
+        st.markdown(f"**Score: {correct_answers} / {total_questions}**")
     with col_submit:
-        all_done = (answered_questions == total_questions)
-        if st.button("📤 Submit Quiz", disabled=not all_done, width="stretch", key="submit_quiz"):
+        all_done = answered_questions == total_questions
+        if st.button("Submit Quiz", disabled=not all_done, width="stretch", key="submit_quiz"):
             if correct_answers == total_questions:
                 st.balloons()
-                st.success("🏆 Perfect Score! Excellent understanding of the code snippet!")
+                st.success("Perfect Score! Excellent understanding of the code.")
             else:
-                st.info("👍 Quiz submitted successfully! Review the incorrect options to learn more.")
+                st.info("Quiz submitted. Review incorrect answers to learn more.")
 
 
 def render_learning_tab() -> None:
-    """
-    Tab 7 — Learning Tips.
-
-    Iterates over ``st.session_state.analysis_result["learning_tips"]``
-    — a list of tip strings covering practice exercises, topics, and tasks.
-    """
+    """Tab 7 — Learning Tips."""
     result = st.session_state.analysis_result
-    render_section_header("🎓 Learning Tips")
-    
+    render_section_header("Learning Tips")
+
     tips = result.get("learning_tips", [])
     if not tips:
-        render_placeholder(AI_STATUS_PLACEHOLDER)
+        st.info("No learning tips were returned for this analysis.")
         return
 
-    st.markdown("##### 📚 Recommended Tips & Topics")
     for tip in tips:
-        # Determine standard category icons based on contents dynamically
-        icon = "💡"
-        tip_lower = tip.lower()
-        if "recursion" in tip_lower or "loop" in tip_lower:
-            icon = "🔁"
-        elif "complexity" in tip_lower or "big-o" in tip_lower:
-            icon = "📊"
-        elif "practice" in tip_lower or "rewrite" in tip_lower:
-            icon = "🏋️"
-        elif "explore" in tip_lower or "read" in tip_lower:
-            icon = "🧭"
-            
+        icon = "→"
         render_empty_card(tip, icon=icon)
+
+
+# =============================================================================
+# PRIVATE UI HELPERS
+# =============================================================================
+
+def _show_progress(
+    slot,
+    done: list[str],
+    active: str,
+    pending: list[str],
+    pct: float,
+) -> None:
+    """
+    Update a Streamlit ``st.empty()`` slot in-place with a styled progress card.
+    """
+    lines_html = "".join(f"<div class='prog-step done'>✓ {s}</div>" for s in done)
+    if active:
+        lines_html += f"<div class='prog-step active'>⏳ {active}</div>"
+    lines_html += "".join(f"<div class='prog-step pending'>· {s}</div>" for s in pending)
+
+    with slot.container():
+        st.markdown(f'<div class="progress-card">{lines_html}</div>', unsafe_allow_html=True)
+        st.progress(pct)
+
+
+def _render_stats_dashboard(code: str, result: dict) -> None:
+    """
+    Render the statistics dashboard.
+    """
+    code_hash = hash(code)
+    if st.session_state.get("cached_metrics_hash") != code_hash:
+        st.session_state.cached_metrics      = analysis.calculate_static_metrics(code)
+        st.session_state.cached_metrics_hash = code_hash
+
+    metrics    = st.session_state.cached_metrics
+    struct     = metrics.get("structure", {})
+    quality    = metrics.get("quality", {})
+    compl      = metrics.get("complexity", {})
+    lang       = result.get("language", "—") or "—"
+    difficulty = (result.get("complexity") or {}).get("difficulty") or "—"
+
+    metrics_data = [
+        ("Lines of Code",     str(struct.get("Lines of code", 0))),
+        ("Functions",         str(struct.get("Function count", 0))),
+        ("Classes",           str(struct.get("Class count", 0))),
+        ("Est. Complexity",   compl.get("Estimated Time Complexity", "—")),
+        ("Difficulty",        difficulty),
+        ("Language",          lang),
+        ("Maintainability",   quality.get("Maintainability score", "—")),
+        ("Readability",       quality.get("Readability score", "—")),
+    ]
+
+    st.markdown("#### Code Statistics")
+    cols = st.columns(4)
+    for i, (label, value) in enumerate(metrics_data):
+        with cols[i % 4]:
+            st.metric(label=label, value=value)
+    st.markdown("---")
 
 
 # =============================================================================
@@ -674,44 +609,30 @@ def render_learning_tab() -> None:
 # =============================================================================
 
 def render_output_tabs(code: str, language: str) -> None:
-    """
-    Orchestrate all seven analysis-result tabs.
-
-    This function only creates the tab containers from ``ALL_TABS`` and
-    delegates all content rendering to the individual ``render_*_tab()``
-    functions.  To change tab order or add a new tab, update ``ALL_TABS``
-    and add/reorder the ``with tab_*`` blocks below.
-
-    Args:
-        code:     The user's code snippet (stored for future AI processing).
-        language: The detected / selected language (stored for future use).
-    """
+    """Render the analysis results once the user has completed an analysis."""
     st.divider()
-    
-    # Render Download buttons for Reports
-    col_title, col_dl_md, col_dl_html, col_dl_json = st.columns([2, 1, 1, 1])
-    with col_title:
-        st.markdown("### 📊 Analysis Results")
-        render_language_badge(language)
-        
+
     result = st.session_state.analysis_result
-    
-    with col_dl_md:
-        st.markdown("<br>", unsafe_allow_html=True)
-        md_content = report_generator.generate_markdown_report(result, code)
-        st.download_button("📄 Markdown", data=md_content, file_name="code_report.md", mime="text/markdown", use_container_width=True)
-        
-    with col_dl_html:
-        st.markdown("<br>", unsafe_allow_html=True)
-        html_content = report_generator.generate_html_report(result, code)
-        st.download_button("📄 HTML", data=html_content, file_name="code_report.html", mime="text/html", use_container_width=True)
 
-    with col_dl_json:
-        st.markdown("<br>", unsafe_allow_html=True)
-        json_content = json.dumps(result, indent=2)
-        st.download_button("📄 JSON", data=json_content, file_name="code_report.json", mime="application/json", use_container_width=True)
+    st.markdown("### Analysis Results")
+    _render_stats_dashboard(code, result)
+    logger.info("UI rendering completed")
 
-    # Unpack exactly as many variables as there are entries in ALL_TABS.
+    with st.expander("📥 Download Results", expanded=False):
+        dl1, dl2, dl3 = st.columns(3)
+        with dl1:
+            md_content = report_generator.generate_markdown_report(result, code)
+            st.download_button("Markdown", data=md_content, file_name="code_report.md",
+                               mime="text/markdown", use_container_width=True)
+        with dl2:
+            html_content = report_generator.generate_html_report(result, code)
+            st.download_button("HTML", data=html_content, file_name="code_report.html",
+                               mime="text/html", use_container_width=True)
+        with dl3:
+            json_content = json.dumps(result, indent=2)
+            st.download_button("JSON", data=json_content, file_name="code_report.json",
+                               mime="application/json", use_container_width=True)
+
     (
         tab_summary,
         tab_lineby,
@@ -724,47 +645,18 @@ def render_output_tabs(code: str, language: str) -> None:
 
     with tab_summary:
         render_summary_tab(code)
-
     with tab_lineby:
         render_linebyline_tab()
-
     with tab_complexity:
         render_complexity_tab()
-
     with tab_improvements:
         render_improvement_tab()
-
     with tab_bugs:
         render_bug_tab()
-
     with tab_quiz:
         render_quiz_tab()
-
     with tab_learning:
         render_learning_tab()
-
-
-# =============================================================================
-# EMPTY STATE
-# =============================================================================
-
-def render_empty_state() -> None:
-    """
-    Render a centred call-to-action prompt shown before the user has
-    clicked **Explain Code** for the first time in the session.
-    """
-    st.divider()
-    st.markdown(
-        "<div class='empty-state'>"
-        "<h3>👆 Paste your code above and click <em>Explain Code</em></h3>"
-        "<p>"
-        "The AI will generate a plain-English explanation, complexity "
-        "analysis, improvement tips, bug reports, and a comprehension "
-        "quiz — all in seconds."
-        "</p>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
 
 
 # =============================================================================
@@ -777,45 +669,77 @@ def process_code(code: str, language: str) -> None:
 
     Calls the single unified generate_complete_analysis() method from gemini_client
     and maps the returned values directly into st.session_state.analysis_result keys.
-    If the API call fails, details are logged and fallbacks are loaded.
+    On failure, classifies the error type into session state for Task 10 display.
 
     Args:
         code:     The raw code string submitted by the user.
         language: The language selected in the dropdown (or auto-detected).
     """
+    logger.info("Analysis started")
+
+    # Clear any previous error state
+    st.session_state.pop("analysis_error_type", None)
+    st.session_state.pop("analysis_error_detail", None)
+
     # 1. Reset analysis_result to baseline schema with the active language
     st.session_state.analysis_result = copy.deepcopy(_ANALYSIS_RESULT_SCHEMA)
     st.session_state.analysis_result["language"] = language
 
     try:
-        # Single request execution
-        analysis = gemini_client.generate_complete_analysis(code, language)
-        
-        # Load elements into state
-        st.session_state.analysis_result["summary"] = analysis.get("summary", "")
-        st.session_state.analysis_result["line_by_line"] = analysis.get("line_by_line", [])
-        st.session_state.analysis_result["complexity"] = analysis.get("complexity", {})
-        st.session_state.analysis_result["improvements"] = analysis.get("improvements", [])
-        st.session_state.analysis_result["bugs"] = analysis.get("bugs", [])
-        st.session_state.analysis_result["quiz"] = analysis.get("quiz", [])
-        st.session_state.analysis_result["learning_tips"] = analysis.get("learning_tips", [])
-        
+        logger.info("Gemini request started")
+        # Single request execution — do NOT rename this variable (would shadow the module)
+        ai_result = gemini_client.generate_complete_analysis(code, language)
+        logger.info("Gemini response received")
+
+        # Map AI response fields into session state
+        st.session_state.analysis_result["summary"]       = ai_result.get("summary", "")
+        st.session_state.analysis_result["line_by_line"]  = ai_result.get("line_by_line", [])
+        st.session_state.analysis_result["complexity"]    = ai_result.get("complexity", {})
+        st.session_state.analysis_result["improvements"]  = ai_result.get("improvements", [])
+        st.session_state.analysis_result["bugs"]          = ai_result.get("bugs", [])
+        st.session_state.analysis_result["quiz"]          = ai_result.get("quiz", [])
+        st.session_state.analysis_result["learning_tips"] = ai_result.get("learning_tips", [])
+
         # Reset running quiz score
         st.session_state.quiz_score = 0
-        
-        # Append to history
+
+        # Task 6 — update session analytics
+        stats = st.session_state.session_stats
+        stats["analyses"]   += 1
+        stats["total_length"] += len(code)
+        stats["lang_counts"][language] = stats["lang_counts"].get(language, 0) + 1
+
+        # Task 7 — append enriched history item
+        difficulty = (st.session_state.analysis_result.get("complexity") or {}).get("difficulty", "—") or "—"
         history_item = {
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-            "language": language,
-            "code": code,
-            "result": copy.deepcopy(st.session_state.analysis_result)
+            "timestamp":   datetime.now().strftime("%H:%M:%S"),
+            "language":    language,
+            "code":        code,
+            "code_length": len(code),       # shown in history panel
+            "difficulty":  difficulty,       # shown in history panel
+            "result":      copy.deepcopy(st.session_state.analysis_result),
         }
         st.session_state.analysis_history.append(history_item)
-        
+        logger.info("Session state updated")
+
     except Exception as e:
         logger.error(f"Failed to process unified code analysis: {e}")
-        # Retain standard baseline defaults
         st.session_state.quiz_score = 0
+
+        # Task 10 — classify error for rich error card display
+        err_lower = str(e).lower()
+        if "api_key" in err_lower or "api key" in err_lower or "invalid key" in err_lower:
+            err_type = "no_api_key"
+        elif "quota" in err_lower or "rate" in err_lower or "429" in err_lower:
+            err_type = "gemini_unavailable"
+        elif "network" in err_lower or "connection" in err_lower or "timeout" in err_lower:
+            err_type = "network_error"
+        elif "json" in err_lower or "parse" in err_lower or "decode" in err_lower:
+            err_type = "invalid_response"
+        else:
+            err_type = "generic"
+        st.session_state.analysis_error_type   = err_type
+        st.session_state.analysis_error_detail = str(e)[:300]
 
 
 # =============================================================================
@@ -824,20 +748,8 @@ def process_code(code: str, language: str) -> None:
 
 
 def main() -> None:
-    """
-    Top-level orchestrator — initialises state then calls render functions.
-
-    Flow:
-      1. Initialise session state (single analysis_result object + quiz_score)
-      2. Sidebar
-      3. Hero header
-      4. Code input section  →  returns (code, language, explain_clicked)
-      5a. If explain_clicked and input valid → spinner + output tabs
-      5b. If explain_clicked but input empty → validation warning (via validate_input)
-      5c. Otherwise                          → empty-state prompt
-    """
+    """Top-level orchestrator."""
     _init_session_state()
-
     render_sidebar()
     render_header()
 
@@ -846,29 +758,48 @@ def main() -> None:
     if explain_clicked:
         is_valid, code_sanitized = validate_input(code)
         if is_valid:
-            if language == DEFAULT_LANGUAGE:
-                language_used = language_detector.detect_language(code_sanitized)
-            else:
-                language_used = language
+            prog_slot = st.empty()
+            _show_progress(prog_slot, [], "Preparing source code…",
+                           ["Detecting language", "Sending to Gemini", "Parsing response", "Building report"], 0.1)
 
-            # Store the selected language immediately so all Phase 3 modules
-            # can read it from session state without needing extra arguments.
+            language_used = (
+                language_detector.detect_language(code_sanitized)
+                if language == DEFAULT_LANGUAGE else language
+            )
+            logger.info("Language detected: %s", language_used)
             st.session_state.analysis_result["language"] = language_used
+            _show_progress(prog_slot, ["Prepared source code"],
+                           f"Language: {language_used} — Sending to Gemini…",
+                           ["Parsing response", "Building report"], 0.35)
 
-            with st.spinner(SPINNER_TEXT):
-                process_code(code_sanitized, language_used)
+            process_code(code_sanitized, language_used)
 
-            st.session_state.has_analyzed = True
-            render_output_tabs(code_sanitized, language_used)
+            if st.session_state.get("analysis_error_type"):
+                prog_slot.empty()
+                render_error_card(
+                    st.session_state.analysis_error_type,
+                    st.session_state.get("analysis_error_detail", ""),
+                )
+            else:
+                _show_progress(prog_slot,
+                               ["Prepared source code", f"Language: {language_used}",
+                                "Gemini responded", "Parsed AI response"],
+                               "Building analysis report…", [], 0.9)
+                time.sleep(0.3)
+                _show_progress(prog_slot,
+                               ["Prepared source code", f"Language: {language_used}",
+                                "Gemini responded", "Parsed AI response", "Analysis complete ✓"],
+                               "", [], 1.0)
+                time.sleep(0.35)
+                prog_slot.empty()
+                st.session_state.has_analyzed = True
+                render_output_tabs(code_sanitized, language_used)
+
     elif st.session_state.get("has_analyzed", False):
         language_used = st.session_state.analysis_result.get("language", language)
         render_output_tabs(code, language_used)
-    else:
-        render_empty_state()
 
 
-# =============================================================================
-# ENTRY POINT
-# =============================================================================
 if __name__ == "__main__":
     main()
+

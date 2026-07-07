@@ -12,6 +12,9 @@ import re
 from typing import Any
 import google.generativeai as genai
 from google.api_core.exceptions import GoogleAPIError
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Setup module logging
 logging.basicConfig(level=logging.INFO)
@@ -27,9 +30,9 @@ def _get_generative_model() -> genai.GenerativeModel:
         return _cached_model
 
     api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        logger.error("GEMINI_API_KEY environment variable is not set.")
-        raise ValueError("Gemini API Key is not set.")
+    if not api_key or api_key.startswith("your_"):
+        logger.error("GEMINI_API_KEY environment variable is not set or still uses a placeholder value.")
+        raise ValueError("Gemini API key not found. Add a valid GEMINI_API_KEY to your .env file and restart the app.")
 
     try:
         genai.configure(api_key=api_key)
@@ -183,17 +186,18 @@ def _validate_analysis(data: dict, language: str) -> dict[str, Any]:
 
 def generate_complete_analysis(code: str, language: str) -> dict[str, Any]:
     logger.info(f"Analysis request started for language: {language}")
-    
+
     try:
         model = _get_generative_model()
     except Exception as e:
         logger.error(f"Model initialization failed: {e}")
-        return _get_default_analysis_result(language, "Model initialization failed.")
+        raise RuntimeError(f"Gemini initialization failed: {e}") from e
 
     prompt = _get_complete_analysis_prompt(code, language)
-    
+
     for attempt in range(1, MAX_RETRIES + 1):
         try:
+            logger.info("Gemini request started")
             response = model.generate_content(
                 prompt,
                 generation_config={
@@ -201,26 +205,35 @@ def generate_complete_analysis(code: str, language: str) -> dict[str, Any]:
                     "response_mime_type": "application/json"
                 }
             )
-            
+            logger.info("Gemini response received")
+
             if not response.text:
-                raise ValueError("Empty response text from Gemini.")
-                
+                raise ValueError("Gemini returned an empty response.")
+
             parsed_data = _parse_json(response.text)
             if parsed_data is None:
-                logger.error("Failed to parse JSON on attempt %d. Returning default.", attempt)
-                return _get_default_analysis_result(language, "API response was not a valid dictionary.")
-                
-            logger.info("Analysis request completed successfully.")
-            return _validate_analysis(parsed_data, language)
-            
-        except (GoogleAPIError, Exception) as e:
-            logger.error(f"API request failed on attempt {attempt}/{MAX_RETRIES}: {e}")
+                logger.error("Failed to parse JSON on attempt %d.", attempt)
+                raise ValueError("Gemini returned invalid JSON.")
+
+            logger.info("JSON parsed successfully")
+            validated_data = _validate_analysis(parsed_data, language)
+            logger.info("Validation completed")
+            return validated_data
+
+        except GoogleAPIError as e:
+            logger.error(f"Gemini API request failed on attempt {attempt}/{MAX_RETRIES}: {e}")
             if attempt < MAX_RETRIES:
                 sleep_time = 2 ** attempt
                 logger.info(f"Retrying in {sleep_time} seconds...")
                 time.sleep(sleep_time)
             else:
                 logger.error("Max retries exceeded.")
-                return _get_default_analysis_result(language, "Max retries exceeded during API request.")
+                raise RuntimeError("Gemini is unavailable right now. Please try again in a moment.") from e
+        except ValueError as e:
+            logger.error(f"Gemini response validation failed: {e}")
+            raise RuntimeError(str(e)) from e
+        except Exception as e:
+            logger.error(f"Unexpected Gemini failure: {e}")
+            raise RuntimeError("Gemini analysis failed. Please try again.") from e
 
-    return _get_default_analysis_result(language, "Unknown error occurred.")
+    raise RuntimeError("Gemini analysis failed after retries.")
