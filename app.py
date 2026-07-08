@@ -47,7 +47,7 @@ logger = logging.getLogger("app")
 # =============================================================================
 st.set_page_config(
     page_title="CodeExplain: Plain-English Code Tutor",
-    page_icon="🤖",
+    page_icon="⌘",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -57,7 +57,6 @@ load_css("assets/styles.css")
 
 
 APP_NAME:     str = "CodeExplain"
-APP_SUBTITLE: str = "Plain-English Code Tutor"
 APP_VERSION:  str = "1.0.0"
 
 DEFAULT_LANGUAGE: str = "Auto Detect"
@@ -160,8 +159,8 @@ def render_sidebar() -> None:
         try:
             st.image("assets/logo.png", use_container_width=True)
         except Exception:
-            st.markdown("## 🤖")
-        st.markdown("## 🤖 CodeExplain")
+            st.markdown("## CodeExplain")
+        st.markdown("## CodeExplain")
         st.caption("Plain-English Code Tutor")
         st.divider()
 
@@ -211,7 +210,7 @@ def render_sidebar() -> None:
             "Powered by Google Gemini."
         )
         st.markdown(
-            f"<small style='color:var(--text-muted)'>🔖 v{APP_VERSION} · Built with Streamlit</small>",
+            f"<small style='color:var(--text-muted)'>v{APP_VERSION} · Built with Streamlit</small>",
             unsafe_allow_html=True,
         )
 
@@ -227,15 +226,9 @@ def render_header() -> None:
     T3: single prominent title only, no duplicate branding.
     """
     st.markdown(
-        "<h1 style='text-align:center;'>🤖 CodeExplain</h1>",
+        f"<h1 style='text-align:center;'>{APP_NAME}</h1>",
         unsafe_allow_html=True,
     )
-    st.markdown(
-        "<p class='hero-subtitle'>Understand any code in plain English — "
-        "powered by Google Gemini.</p>",
-        unsafe_allow_html=True,
-    )
-
 
 # =============================================================================
 # CODE INPUT SECTION
@@ -281,7 +274,7 @@ def render_input_section() -> tuple[str, str, bool]:
         label="Code Input",
         value=code_value,
         height=220,
-        placeholder="Paste your Python, Java, C++, or JavaScript code here…",
+        placeholder="Paste your code here…",
         label_visibility="collapsed",
         key="code_input",
     )
@@ -309,7 +302,7 @@ def render_input_section() -> tuple[str, str, bool]:
     with col_btn:
         st.markdown("<br>", unsafe_allow_html=True)
         explain_btn: bool = st.button(
-            "Explain Code",
+            "Analyze Code",
             type="primary",
             width="stretch",
             key="explain_btn",
@@ -355,7 +348,7 @@ def render_summary_tab(code: str) -> None:
 
     summary_text = result.get("summary")
     if not summary_text:
-        st.info("No summary was returned for this analysis.")
+        render_empty_card("Summary unavailable — no content returned.", icon="•")
         return
 
     st.markdown(summary_text)
@@ -379,7 +372,7 @@ def render_linebyline_tab() -> None:
 
     rows = result.get("line_by_line", [])
     if not rows:
-        st.info("No line-by-line breakdown was returned for this analysis.")
+        render_empty_card("Breakdown unavailable — no details returned.", icon="•")
         return
 
     lang = str(result.get("language", "python")).lower()
@@ -410,7 +403,7 @@ def render_complexity_tab() -> None:
 
     complexity = result.get("complexity", {})
     if not complexity or complexity.get("time") is None:
-        st.info("No complexity analysis was returned for this analysis.")
+        render_empty_card("Complexity unavailable — no analysis returned.", icon="•")
         return
 
     col_left, col_right = st.columns(2)
@@ -432,7 +425,7 @@ def render_improvement_tab() -> None:
 
     improvements = result.get("improvements", [])
     if not improvements:
-        st.info("No improvement suggestions were returned for this analysis.")
+        render_empty_card("Suggestions unavailable — no tips returned.", icon="•")
         return
 
     for imp in improvements:
@@ -446,7 +439,7 @@ def render_bug_tab() -> None:
 
     bugs = result.get("bugs", [])
     if not bugs:
-        st.success("No bugs, anti-patterns, or logic errors were identified.")
+        render_empty_card("No issues found — no bugs were detected.", icon="•")
         return
 
     lang = str(result.get("language", "python")).lower()
@@ -484,7 +477,7 @@ def render_quiz_tab() -> None:
 
     quiz_questions = result.get("quiz", [])
     if not quiz_questions:
-        st.info("No quiz questions were returned for this analysis.")
+        render_empty_card("Quiz unavailable — no questions returned.", icon="•")
         return
 
     correct_answers = 0
@@ -537,7 +530,7 @@ def render_learning_tab() -> None:
 
     tips = result.get("learning_tips", [])
     if not tips:
-        st.info("No learning tips were returned for this analysis.")
+        render_empty_card("Learning tips unavailable — no content returned.", icon="•")
         return
 
     for tip in tips:
@@ -618,7 +611,7 @@ def render_output_tabs(code: str, language: str) -> None:
     _render_stats_dashboard(code, result)
     logger.info("UI rendering completed")
 
-    with st.expander("📥 Download Results", expanded=False):
+    with st.expander("Download Results", expanded=False):
         dl1, dl2, dl3 = st.columns(3)
         with dl1:
             md_content = report_generator.generate_markdown_report(result, code)

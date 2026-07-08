@@ -1,50 +1,37 @@
 /* =============================================================================
-   assets/styles.css — Custom Styles for CodeExplain: Plain-English Code Tutor
-   =============================================================================
-   Design system:
-     - Dark-mode first palette
-     - Electric-blue accent (#4A9EFF)
-     - Inter/system font stack
-     - Subtle glassmorphism cards
-     - Smooth micro-animations
+   assets/styles.css — Custom Styles for CodeExplain
    ============================================================================= */
 
-/* ── Google Font import ────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ── CSS custom properties ─────────────────────────────────────────────────── */
 :root {
-  --primary:        #4A9EFF;
-  --primary-dark:   #1e6fcf;
-  --primary-glow:   rgba(74, 158, 255, 0.18);
-  --bg-base:        #0d1117;
-  --bg-card:        #161b22;
-  --bg-card-hover:  #1c2330;
-  --border:         #30363d;
-  --border-accent:  #4A9EFF44;
-  --text-primary:   #e6edf3;
+  --primary: #4A9EFF;
+  --primary-dark: #1e6fcf;
+  --primary-glow: rgba(74, 158, 255, 0.16);
+  --bg-base: #0d1117;
+  --bg-card: #161b22;
+  --border: #30363d;
+  --border-accent: #4A9EFF44;
+  --text-primary: #e6edf3;
   --text-secondary: #8b949e;
-  --text-muted:     #6e7681;
-  --success:        #3fb950;
-  --warning:        #d29922;
-  --error:          #f85149;
-  --radius-sm:      6px;
-  --radius-md:      12px;
-  --radius-lg:      18px;
-  --shadow:         0 4px 24px rgba(0,0,0,0.4);
-  --font-body:      'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono:      'JetBrains Mono', 'Courier New', monospace;
+  --text-muted: #6e7681;
+  --success: #3fb950;
+  --warning: #d29922;
+  --error: #f85149;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
 }
 
-/* ── Base & body ────────────────────────────────────────────────────────────── */
 html, body, [data-testid="stAppViewContainer"] {
   background-color: var(--bg-base) !important;
   color: var(--text-primary) !important;
   font-family: var(--font-body) !important;
 }
 
-/* ── Main content area ──────────────────────────────────────────────────────── */
-[data-testid="stMain"] {
+[data-testid="stMain"], section[data-testid="stSidebar"] {
   background-color: var(--bg-base) !important;
 }
 
@@ -53,16 +40,12 @@ section[data-testid="stSidebar"] {
   border-right: 1px solid var(--border) !important;
 }
 
-/* ── Page title (h1) ────────────────────────────────────────────────────────── */
 h1 {
   font-family: var(--font-body) !important;
   font-weight: 700 !important;
-  font-size: 2.4rem !important;
-  background: linear-gradient(135deg, #ffffff 0%, var(--primary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  letter-spacing: -0.5px;
+  font-size: 2.2rem !important;
+  color: var(--text-primary) !important;
+  letter-spacing: -0.4px;
 }
 
 h2, h3, h4 {
@@ -71,33 +54,29 @@ h2, h3, h4 {
   color: var(--text-primary) !important;
 }
 
-/* ── Sidebar headings ───────────────────────────────────────────────────────── */
 section[data-testid="stSidebar"] h2,
 section[data-testid="stSidebar"] h3 {
   color: var(--primary) !important;
   font-size: 0.9rem !important;
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin-top: 0.5rem;
+  margin-top: 0.4rem;
 }
 
-/* ── Sidebar image (logo) ───────────────────────────────────────────────────── */
 section[data-testid="stSidebar"] img {
   border-radius: var(--radius-md);
   margin-bottom: 0.5rem;
 }
 
-/* ── Text area (code input) ─────────────────────────────────────────────────── */
 textarea[data-testid="stTextArea"],
 .stTextArea textarea {
   font-family: var(--font-mono) !important;
   font-size: 0.875rem !important;
   background-color: #0d1117 !important;
-  color: #e6edf3 !important;
+  color: var(--text-primary) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-md) !important;
   line-height: 1.6 !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 textarea[data-testid="stTextArea"]:focus,
@@ -107,34 +86,18 @@ textarea[data-testid="stTextArea"]:focus,
   outline: none !important;
 }
 
-/* ── Primary button (Explain Code) ─────────────────────────────────────────── */
 button[kind="primary"],
 .stButton > button[kind="primary"] {
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%) !important;
-  color: #ffffff !important;
+  color: #fff !important;
   border: none !important;
   border-radius: var(--radius-sm) !important;
   font-family: var(--font-body) !important;
   font-weight: 600 !important;
-  font-size: 0.95rem !important;
-  letter-spacing: 0.3px;
-  padding: 0.55rem 1.4rem !important;
-  box-shadow: 0 2px 12px rgba(74, 158, 255, 0.35) !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease !important;
+  padding: 0.55rem 1.2rem !important;
+  box-shadow: 0 2px 10px rgba(74, 158, 255, 0.25) !important;
 }
 
-button[kind="primary"]:hover {
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 20px rgba(74, 158, 255, 0.55) !important;
-  filter: brightness(1.1) !important;
-}
-
-button[kind="primary"]:active {
-  transform: translateY(0) !important;
-  filter: brightness(0.95) !important;
-}
-
-/* ── Secondary button (Clear) ───────────────────────────────────────────────── */
 button[kind="secondary"],
 .stButton > button[kind="secondary"] {
   background-color: transparent !important;
@@ -143,30 +106,22 @@ button[kind="secondary"],
   border-radius: var(--radius-sm) !important;
   font-family: var(--font-body) !important;
   font-weight: 500 !important;
-  transition: border-color 0.15s ease, color 0.15s ease !important;
 }
 
-button[kind="secondary"]:hover {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
+button[kind="secondary"]:hover,
+button[kind="primary"]:hover {
+  filter: brightness(1.03) !important;
 }
 
-/* ── Selectbox ──────────────────────────────────────────────────────────────── */
 [data-testid="stSelectbox"] > div > div {
   background-color: var(--bg-card) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-sm) !important;
   color: var(--text-primary) !important;
-  transition: border-color 0.2s ease;
 }
 
-[data-testid="stSelectbox"] > div > div:hover {
-  border-color: var(--primary) !important;
-}
-
-/* ── Tabs ───────────────────────────────────────────────────────────────────── */
 [data-testid="stTabs"] [role="tablist"] {
-  border-bottom: 2px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
   gap: 4px;
 }
 
@@ -177,42 +132,34 @@ button[kind="secondary"]:hover {
   color: var(--text-secondary) !important;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0 !important;
   padding: 0.5rem 1rem !important;
-  transition: color 0.15s ease, background 0.15s ease !important;
-}
-
-[data-testid="stTabs"] button[role="tab"]:hover {
-  color: var(--text-primary) !important;
-  background: var(--primary-glow) !important;
 }
 
 [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
   color: var(--primary) !important;
-  border-bottom: 2px solid var(--primary) !important;
   background: var(--primary-glow) !important;
 }
 
-/* ── Containers (bordered cards) ────────────────────────────────────────────── */
-[data-testid="stVerticalBlockBorderWrapper"] {
+[data-testid="stVerticalBlockBorderWrapper"],
+[data-testid="stMetric"],
+[data-testid="stExpander"] {
   background-color: var(--bg-card) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-md) !important;
-  padding: 1.5rem !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  box-shadow: var(--shadow) !important;
 }
 
-[data-testid="stVerticalBlockBorderWrapper"]:hover {
-  border-color: var(--border-accent) !important;
-  box-shadow: 0 8px 24px var(--primary-glow) !important;
-  transform: translateY(-2px);
+[data-testid="stVerticalBlockBorderWrapper"] {
+  padding: 1rem 1.25rem !important;
 }
 
-/* ── Info / Success / Warning / Error boxes ─────────────────────────────────── */
+[data-testid="stMetric"] {
+  padding: 1rem !important;
+}
+
 [data-testid="stInfo"] {
   background-color: rgba(74, 158, 255, 0.08) !important;
   border-left: 3px solid var(--primary) !important;
   border-radius: var(--radius-sm) !important;
-  color: var(--text-primary) !important;
 }
 
 [data-testid="stSuccess"] {
@@ -233,27 +180,10 @@ button[kind="secondary"]:hover {
   border-radius: var(--radius-sm) !important;
 }
 
-/* ── Code blocks ────────────────────────────────────────────────────────────── */
 [data-testid="stCode"] {
   font-family: var(--font-mono) !important;
+  border: 1px solid var(--border) !important;
   border-radius: var(--radius-sm) !important;
-  border: 1px solid var(--border) !important;
-}
-
-/* ── Metrics ────────────────────────────────────────────────────────────────── */
-[data-testid="stMetric"] {
-  background-color: var(--bg-card) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius-md) !important;
-  padding: 1.25rem 1rem !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-[data-testid="stMetric"]:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px var(--primary-glow) !important;
-  border-color: var(--border-accent) !important;
 }
 
 [data-testid="stMetricValue"] {
@@ -261,130 +191,64 @@ button[kind="secondary"]:hover {
   color: var(--primary) !important;
 }
 
-/* ── Progress bar ───────────────────────────────────────────────────────────── */
 [data-testid="stProgressBar"] > div {
   background-color: var(--primary) !important;
-  border-radius: 99px !important;
+  border-radius: 999px !important;
 }
 
-/* ── Radio buttons ──────────────────────────────────────────────────────────── */
-[data-testid="stRadio"] label {
-  font-family: var(--font-body) !important;
-  color: var(--text-primary) !important;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-[data-testid="stRadio"] label:hover {
-  color: var(--primary) !important;
-}
-
-/* ── Divider ────────────────────────────────────────────────────────────────── */
 hr {
   border-color: var(--border) !important;
-  margin: 1.25rem 0 !important;
+  margin: 1rem 0 !important;
 }
 
-/* ── Scrollbar ──────────────────────────────────────────────────────────────── */
-::-webkit-scrollbar               { width: 6px; height: 6px; }
-::-webkit-scrollbar-track         { background: var(--bg-base); }
-::-webkit-scrollbar-thumb         { background: var(--border); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover   { background: var(--primary); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
-/* ── Spinner overlay ────────────────────────────────────────────────────────── */
-[data-testid="stSpinner"] {
-  color: var(--primary) !important;
-}
-
-/* ── Responsive: stack columns on small screens ─────────────────────────────── */
-@media (max-width: 768px) {
-  h1 { font-size: 1.6rem !important; }
-}
-
-/* ── Hero subtitle (render_header) ──────────────────────────────────────────── */
-/* Replaces the inline style='text-align:center; font-size:1.15rem; color:#888' */
-p.hero-subtitle {
-  text-align: center;
-  font-size: 1.15rem !important;
-  color: #888 !important;
-  margin-bottom: 0.5rem;
-}
-
-/* =============================================================================
-   TASK 1 — Staged Progress Card
-   ============================================================================= */
 .progress-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1.15rem;
   margin: 0.75rem 0 1rem;
   box-shadow: var(--shadow);
 }
+
 .prog-step {
-  padding: 0.3rem 0;
+  padding: 0.25rem 0;
   font-size: 0.9rem;
   font-family: var(--font-body);
-  transition: color 0.2s;
 }
-.prog-step.done    { color: var(--success); }
-.prog-step.active  { color: var(--primary); font-weight: 600; }
+
+.prog-step.done { color: var(--success); }
+.prog-step.active { color: var(--primary); font-weight: 600; }
 .prog-step.pending { color: var(--text-muted); }
 
-/* =============================================================================
-   TASK 7 — History Panel Items
-   ============================================================================= */
 .hist-item {
   font-size: 0.85rem;
-  line-height: 1.55;
-  padding: 0.1rem 0 0.25rem;
+  line-height: 1.5;
+  padding: 0.1rem 0 0.2rem;
   color: var(--text-primary);
 }
+
 .hist-item small { color: var(--text-muted); }
 
-/* =============================================================================
-   TASK 5 — Theme & Spacing Polish
-   ============================================================================= */
+section[data-testid="stSidebar"] > div:first-child { padding: 1rem !important; }
 
-/* Section-level breathing room */
-[data-testid="stExpander"] {
-  border: 1px solid var(--border) !important;
-  border-radius: var(--radius-md) !important;
-  background: var(--bg-card) !important;
-  margin-bottom: 0.75rem !important;
-}
-[data-testid="stExpander"]:hover {
-  border-color: var(--border-accent) !important;
-}
-
-/* Sidebar inner padding */
-section[data-testid="stSidebar"] > div:first-child { padding: 1.25rem 1rem !important; }
-
-/* File uploader */
 [data-testid="stFileUploader"] {
   border: 1px dashed var(--border) !important;
   border-radius: var(--radius-md) !important;
   padding: 0.75rem !important;
-  transition: border-color 0.2s ease;
 }
-[data-testid="stFileUploader"]:hover { border-color: var(--primary) !important; }
 
-/* Download buttons uniform sizing */
 [data-testid="stDownloadButton"] button {
   border-radius: var(--radius-sm) !important;
   font-family: var(--font-body) !important;
   font-size: 0.875rem !important;
   font-weight: 500 !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
-}
-[data-testid="stDownloadButton"] button:hover {
-  transform: translateY(-1px) !important;
-  box-shadow: 0 4px 12px rgba(74,158,255,0.25) !important;
 }
 
-/* =============================================================================
-   TASK 12 — Accessibility: Focus Rings
-   ============================================================================= */
 button:focus-visible,
 [data-testid="stTextArea"] textarea:focus-visible,
 [data-testid="stSelectbox"]:focus-visible {
@@ -392,92 +256,6 @@ button:focus-visible,
   outline-offset: 2px !important;
 }
 
-/* =============================================================================
-   TASK 9 — Responsive Layout
-   ============================================================================= */
-@media (max-width: 900px) {
-  h1 { font-size: 1.8rem !important; }
-
-  /* Collapse 4-col metric grid to 2-col */
-  [data-testid="stHorizontalBlock"] > div { flex: 0 0 48% !important; }
-
-  /* Prevent horizontal scroll on code blocks */
-  [data-testid="stCode"] pre { white-space: pre-wrap !important; word-break: break-word !important; }
-}
-
-@media (max-width: 600px) {
-  h1 { font-size: 1.4rem !important; }
-  p.hero-subtitle { font-size: 0.95rem !important; }
-
-  /* Stack all metric cards */
-  [data-testid="stHorizontalBlock"] > div { flex: 0 0 100% !important; }
-}
-
-/* =============================================================================
-   v1.0 FINAL CLEANUP — Tasks 4, 5, 9, 10, 14, 15, 16, 18
-   ============================================================================= */
-
-/* T16 — Slightly narrower sidebar for better main-area balance */
-section[data-testid="stSidebar"] {
-  min-width: 230px !important;
-  max-width: 260px !important;
-}
-
-/* T9 — Language badge pills in sidebar */
-.lang-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.4rem;
-}
-.lang-badge {
-  background: rgba(74, 158, 255, 0.1);
-  color: var(--text-secondary);
-  border: 1px solid rgba(74, 158, 255, 0.2);
-  border-radius: 20px;
-  padding: 2px 10px;
-  font-size: 0.78rem;
-  white-space: nowrap;
-}
-
-/* T18 — Minimal footer */
-.app-footer {
-  margin-top: 3rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
-  text-align: center;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  letter-spacing: 0.02em;
-}
-
-/* T14 — Softer container borders throughout */
-[data-testid="stVerticalBlock"] > div > [data-testid="stContainer"] {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12) !important;
-  border: 1px solid rgba(255,255,255,0.06) !important;
-  border-radius: var(--radius-md) !important;
-}
-
-/* T5 — Reduce vertical spacing around key sections */
-[data-testid="stMetric"]       { padding: 0.5rem 0.6rem !important; }
-[data-testid="stFileUploader"] { margin-bottom: 0.5rem !important; }
-[data-testid="stTextArea"]     { margin-bottom: 0.25rem !important; }
-
-/* Tighten h1 margin so header doesn't eat vertical space */
-h1 { margin-bottom: 0.25rem !important; }
-p.hero-subtitle { margin-top: 0.25rem !important; margin-bottom: 0.75rem !important; }
-
-/* T15 — Typography hierarchy: consistent weights */
-h1 { font-weight: 700 !important; }
-h2 { font-weight: 600 !important; }
-h3 { font-size: 1.05rem !important; font-weight: 600 !important; }
-h4 { font-size: 0.95rem !important; font-weight: 500 !important; }
-[data-testid="stMetricLabel"] p {
-  font-size: 0.78rem !important;
-  font-weight: 500 !important;
-  color: var(--text-muted) !important;
-}
-[data-testid="stMetricValue"] {
-  font-size: 1.15rem !important;
-  font-weight: 600 !important;
+@media (max-width: 768px) {
+  h1 { font-size: 1.6rem !important; }
 }

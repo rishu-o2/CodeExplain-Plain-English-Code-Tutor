@@ -46,7 +46,7 @@ def render_section_header(title: str, divider: bool = False) -> None:
         st.markdown("---")
 
 
-def render_empty_card(body: str, icon: str = "📌") -> None:
+def render_empty_card(body: str, icon: str = "•") -> None:
     """
     Render a bordered card for analysis content.
 
@@ -65,38 +65,38 @@ def render_empty_card(body: str, icon: str = "📌") -> None:
 # Config: (title, problem, fix, severity) per error type.
 _ERROR_CONFIGS: dict[str, tuple[str, str, str, str]] = {
     "no_api_key": (
-        "🔑 API Key Not Found",
+        "API Key Not Found",
         "The `GEMINI_API_KEY` environment variable is missing or empty.",
         "Add `GEMINI_API_KEY=your_key_here` to your `.env` file and restart the app.",
         "error",
     ),
     "gemini_unavailable": (
-        "☁️ Gemini Service Unavailable",
+        "Gemini Service Unavailable",
         "The Google Gemini API returned an error or is temporarily down.",
         "Wait a moment and click **Retry**. If the issue persists, "
         "check the Google Cloud status page.",
         "warning",
     ),
     "network_error": (
-        "🌐 Network Connection Error",
+        "Network Connection Error",
         "Your device could not reach the Gemini API — the internet connection may be down.",
         "Check your network connection and click **Retry** below.",
         "warning",
     ),
     "invalid_response": (
-        "🤖 Unexpected AI Response",
+        "Unexpected AI Response",
         "Gemini returned a response that could not be parsed correctly.",
         "Click **Retry**. If the snippet is very short or unusual, try adding more context.",
         "warning",
     ),
     "code_too_large": (
-        "📏 Code Too Large",
+        "Code Too Large",
         "The submitted code exceeds the maximum allowed character limit.",
         "Reduce the snippet to under 20,000 characters and try again.",
         "error",
     ),
     "generic": (
-        "⚠️ Analysis Failed",
+        "Analysis Failed",
         "An unexpected error occurred during the analysis.",
         "Click **Retry** or refresh the page to start again.",
         "error",
@@ -136,35 +136,22 @@ def render_error_card(error_type: str, detail: str = "") -> None:
 
 def render_session_analytics(stats: dict) -> None:
     """
-    Render session statistics inside the sidebar.
-
-    Reads from the ``session_stats`` dict stored in ``st.session_state``.
-    Displays analyses count, files uploaded, average code length, most-used
-    language, and elapsed session duration.
+    Render a compact set of session statistics inside the sidebar.
 
     Args:
         stats: The ``st.session_state.session_stats`` dict.
     """
-    st.markdown("### 📈 Session Stats")
+    st.markdown("### Session Analytics")
 
-    analyses    = stats.get("analyses", 0)
-    files_up    = stats.get("files_uploaded", 0)
-    total_len   = stats.get("total_length", 0)
-    avg_len     = (total_len // analyses) if analyses > 0 else 0
-    start_time  = stats.get("start_time", datetime.now())
-    elapsed_s   = int((datetime.now() - start_time).total_seconds())
-    duration    = f"{elapsed_s // 60}m {elapsed_s % 60}s"
-    lang_counts = stats.get("lang_counts", {})
-    top_lang    = max(lang_counts, key=lang_counts.get) if lang_counts else "—"
+    analyses   = stats.get("analyses", 0)
+    files_up   = stats.get("files_uploaded", 0)
+    start_time = stats.get("start_time", datetime.now())
+    elapsed_s  = int((datetime.now() - start_time).total_seconds())
+    duration   = f"{elapsed_s // 60}m {elapsed_s % 60}s"
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Analyses", analyses)
-        st.metric("Avg Length", f"{avg_len:,} ch")
-        st.metric("Duration", duration)
-    with col2:
-        st.metric("Files Up", files_up)
-        st.metric("Top Lang", top_lang)
+    st.metric("Analyses Completed", analyses)
+    st.metric("Files Uploaded", files_up)
+    st.metric("Session Duration", duration)
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +209,7 @@ def render_history_panel(history: list, language_icons: dict) -> None:
         history:        ``st.session_state.analysis_history`` list.
         language_icons: Mapping of language name → emoji icon.
     """
-    st.markdown("### 📜 History")
+    st.markdown("### History")
 
     if st.button("🗑️ Clear All", key="clear_history_btn", use_container_width=True):
         st.session_state.analysis_history = []
