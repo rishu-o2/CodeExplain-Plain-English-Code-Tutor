@@ -1,6 +1,5 @@
-# =============================================================================
+
 # app.py — CodeExplain v1.0
-# =============================================================================
 # Streamlit entry point. Responsibilities:
 #   - Page configuration and CSS injection
 #   - Sidebar, header, input section, and output tabs
@@ -8,7 +7,6 @@
 #   - Orchestrating the single Gemini analysis request
 #
 # Run with:  streamlit run app.py
-# =============================================================================
 
 from __future__ import annotations
 
@@ -41,10 +39,8 @@ logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger("app")
 
 
-# =============================================================================
 # PAGE CONFIGURATION
 # Must be the very first Streamlit call in the script.
-# =============================================================================
 st.set_page_config(
     page_title="CodeExplain: Plain-English Code Tutor",
     page_icon="⌘",
@@ -70,10 +66,10 @@ SUPPORTED_LANGUAGES: list[str] = [
 ]
 
 LANGUAGE_ICONS: dict[str, str] = {
-    "Python":     "🐍",
-    "Java":       "☕",
-    "C++":        "⚙️",
-    "JavaScript": "🌐",
+    "Python":     "",
+    "Java":       "",
+    "C++":        "",
+    "JavaScript": "",
 }
 
 # Tab labels — clean names, no emoji clutter.
@@ -139,9 +135,7 @@ def _init_session_state() -> None:
         st.session_state.code_input = ""
 
 
-# =============================================================================
 # SIDEBAR
-# =============================================================================
 
 def render_sidebar() -> None:
     """
@@ -216,9 +210,7 @@ def render_sidebar() -> None:
 
 
 
-# =============================================================================
 # HERO HEADER
-# =============================================================================
 
 def render_header() -> None:
     """
@@ -230,9 +222,7 @@ def render_header() -> None:
         unsafe_allow_html=True,
     )
 
-# =============================================================================
 # CODE INPUT SECTION
-# =============================================================================
 
 def render_input_section() -> tuple[str, str, bool]:
     """
@@ -322,9 +312,8 @@ def render_input_section() -> tuple[str, str, bool]:
     return code, language, explain_btn
 
 
-# =============================================================================
 # INPUT VALIDATION
-# =============================================================================
+
 
 def validate_input(code: str) -> tuple[bool, str]:
     """
@@ -337,9 +326,7 @@ def validate_input(code: str) -> tuple[bool, str]:
     return is_valid, sanitized
 
 
-# =============================================================================
 # INDIVIDUAL TAB RENDERERS
-# =============================================================================
 
 def render_summary_tab(code: str) -> None:
     """Tab 1 — Plain-English Summary."""
@@ -470,6 +457,14 @@ def render_bug_tab() -> None:
                 st.code(fix, language=lang_highlight)
 
 
+def _extract_option_letter(option_text: str) -> str:
+    """Extract the option letter (A, B, C, D) from option text."""
+    if not option_text:
+        return ""
+    # Get the first character and uppercase it
+    return option_text[0].upper()
+
+
 def render_quiz_tab() -> None:
     """Tab 6 — Comprehension Quiz."""
     result = st.session_state.analysis_result
@@ -501,11 +496,15 @@ def render_quiz_tab() -> None:
 
         if user_choice:
             answered_questions += 1
-            if user_choice == correct_answer:
+            # Extract option letter for comparison (handles different answer formats)
+            user_letter = _extract_option_letter(user_choice)
+            correct_letter = _extract_option_letter(correct_answer)
+            
+            if user_letter == correct_letter:
                 correct_answers += 1
-                st.success(f"✅ **Correct!** {explanation}")
+                st.success(f" **Correct!** {explanation}")
             else:
-                st.error(f"❌ **Incorrect.** The correct answer is: **{correct_answer}**\n\n{explanation}")
+                st.error(f" **Incorrect.** The correct answer is: **{correct_answer}**\n\n{explanation}")
         st.markdown("---")
 
     st.session_state.quiz_score = correct_answers
@@ -537,10 +536,7 @@ def render_learning_tab() -> None:
         icon = "→"
         render_empty_card(tip, icon=icon)
 
-
-# =============================================================================
 # PRIVATE UI HELPERS
-# =============================================================================
 
 def _show_progress(
     slot,
@@ -597,9 +593,7 @@ def _render_stats_dashboard(code: str, result: dict) -> None:
     st.markdown("---")
 
 
-# =============================================================================
 # OUTPUT TAB ORCHESTRATOR
-# =============================================================================
 
 def render_output_tabs(code: str, language: str) -> None:
     """Render the analysis results once the user has completed an analysis."""
@@ -652,9 +646,7 @@ def render_output_tabs(code: str, language: str) -> None:
         render_learning_tab()
 
 
-# =============================================================================
 # PHASE 3 INTEGRATION POINT
-# =============================================================================
 
 def process_code(code: str, language: str) -> None:
     """
@@ -735,9 +727,7 @@ def process_code(code: str, language: str) -> None:
         st.session_state.analysis_error_detail = str(e)[:300]
 
 
-# =============================================================================
 # MAIN ORCHESTRATOR
-# =============================================================================
 
 
 def main() -> None:

@@ -1,11 +1,9 @@
-# =============================================================================
+
 # utils/language_detector.py — Programming Language Auto-Detection
-# =============================================================================
 # Detects the programming language of a given code snippet using:
 #   - Score-based heuristic rules (keywords, common syntax elements)
 #
 # Supported languages: Python, JavaScript, Java, C++.
-# =============================================================================
 
 import re
 
